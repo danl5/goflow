@@ -185,11 +185,12 @@ func (fexec *FlowExecutor) incrementCounter(counter string, incrementBy int) (co
 	var oldCount int64
 	for i := 0; i < counterUpdateRetryCount; i++ {
 		oldCount, err = fexec.stateStore.IncrBy(counter, int64(incrementBy))
-		if err != nil {
-			count = 0
-			err = fmt.Errorf("failed to update counter %s, error %v", counter, err)
-			return
+		if err == nil {
+			break
 		}
+
+		count = 0
+		err = fmt.Errorf("failed to update counter %s, error %v", counter, err)
 	}
 
 	count = int(oldCount)
