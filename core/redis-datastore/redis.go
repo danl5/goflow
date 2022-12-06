@@ -99,6 +99,13 @@ func (this *RedisDataStore) Cleanup() error {
 	return rerr
 }
 
+func (this *RedisDataStore) Clone() faasflow.DataStore {
+	return &RedisDataStore{
+		bucketName:  this.bucketName,
+		redisClient: this.redisClient,
+	}
+}
+
 // getPath produces a string as bucketname.value
 func getPath(bucket, key string) string {
 	fileName := fmt.Sprintf("%s.value", key)

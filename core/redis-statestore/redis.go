@@ -123,3 +123,11 @@ func (this *RedisStateStore) Cleanup() error {
 	}
 	return rerr
 }
+
+func (this *RedisStateStore) Clone() faasflow.StateStore {
+	return &RedisStateStore{
+		KeyPath:    this.KeyPath,
+		rds:        this.rds,
+		RetryCount: this.RetryCount,
+	}
+}
