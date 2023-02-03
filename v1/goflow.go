@@ -2,10 +2,11 @@ package v1
 
 import (
 	"fmt"
+	"time"
+
 	runtimePkg "github.com/s8sg/goflow/core/runtime"
 	"github.com/s8sg/goflow/core/sdk"
 	"github.com/s8sg/goflow/runtime"
-	"time"
 )
 
 type FlowService struct {
@@ -285,6 +286,15 @@ func (fs *FlowService) ConfigureDefault() {
 	//if fs.RetryCount == 0 {
 	//	fs.RetryCount = DefaultRetryCount
 	//}
+}
+
+func (fs *FlowService) AppendFlows(flows map[string]runtime.FlowDefinitionHandler) error {
+	err := fs.runtime.AppendFlows(flows)
+	if err != nil {
+		return fmt.Errorf("failed to append flows: %s", err)
+	}
+
+	return nil
 }
 
 func (fs *FlowService) initRuntime() error {

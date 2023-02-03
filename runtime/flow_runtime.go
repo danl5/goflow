@@ -4,6 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"net/http"
+	"time"
+
 	"github.com/adjust/rmq/v4"
 	"github.com/jasonlvhit/gocron"
 	"github.com/rs/xid"
@@ -15,9 +19,6 @@ import (
 	"github.com/s8sg/goflow/eventhandler"
 	log2 "github.com/s8sg/goflow/log"
 	"gopkg.in/redis.v5"
-	"log"
-	"net/http"
-	"time"
 )
 
 type FlowRuntime struct {
@@ -257,9 +258,48 @@ func (fRuntime *FlowRuntime) StartQueueWorker(errorChan chan error) error {
 		return fmt.Errorf("failed to initiate connection, error %v", err)
 	}
 
-	fRuntime.taskQueues = make(map[string]rmq.Queue)
-	for flowName := range fRuntime.Flows {
-		taskQueue, err := connection.OpenQueue(fRuntime.internalRequestQueueId(flowName))
+	err = fRuntime.initializeTaskQueues(&connection, fRuntime.Flows)
+	if err != nil {
+		return fmt.Errorf("failed to initiate task queues, error %v", err)
+	}
+
+	fRuntime.Logger.Log("[goflow] queue worker started successfully")
+
+	err = <-errorChan
+	<-connection.StopAllConsuming()
+	return err
+}
+
+func (fRuntime *FlowRuntime) AppendFlows(flows map[string]FlowDefinitionHandler) error {
+	// register flows to runtime
+	for flowName, flowHandler := range flows {
+		fRuntime.Flows[flowName] = flowHandler
+	}
+
+	// initialize task queues
+	connection, err := rmq.OpenConnection("goflow", "tcp", fRuntime.RedisURL, 0, nil)
+	if err != nil {
+		return fmt.Errorf("failed to initiate connection, error %v", err)
+	}
+
+	err = fRuntime.initializeTaskQueues(&connection, flows)
+	if err != nil {
+		return fmt.Errorf("failed to initialize task queues, error %v", err)
+	}
+
+	// TODO. clean rmq connection
+
+	return nil
+}
+
+func (fRuntime *FlowRuntime) initializeTaskQueues(connection *rmq.Connection, flows map[string]FlowDefinitionHandler) error {
+
+	if fRuntime.taskQueues == nil {
+		fRuntime.taskQueues = make(map[string]rmq.Queue)
+	}
+
+	for flowName := range flows {
+		taskQueue, err := (*connection).OpenQueue(fRuntime.internalRequestQueueId(flowName))
 		if err != nil {
 			return fmt.Errorf("failed to open queue, error %v", err)
 		}
@@ -269,7 +309,7 @@ func (fRuntime *FlowRuntime) StartQueueWorker(errorChan chan error) error {
 
 		index := 0
 		for index < fRuntime.RetryQueueCount {
-			pushQueues[index], err = connection.OpenQueue(fRuntime.internalRequestQueueId(flowName) + "push-" + fmt.Sprint(index))
+			pushQueues[index], err = (*connection).OpenQueue(fRuntime.internalRequestQueueId(flowName) + "push-" + fmt.Sprint(index))
 			if err != nil {
 				return fmt.Errorf("failed to open push queue, error %v", err)
 			}
@@ -312,22 +352,42 @@ func (fRuntime *FlowRuntime) StartQueueWorker(errorChan chan error) error {
 		}
 	}
 
-	fRuntime.Logger.Log("[goflow] queue worker started successfully")
-
-	err = <-errorChan
-	<-connection.StopAllConsuming()
-	return err
+	return nil
 }
 
 // StartRuntime starts the runtime
 func (fRuntime *FlowRuntime) StartRuntime() error {
 	worker := &Worker{
 		ID:          getNewId(),
-		Flows:       make([]string, 0, len(fRuntime.Flows)),
+		Flows:       []string{},
 		Concurrency: fRuntime.Concurrency,
 	}
+	err := fRuntime.saveDetails(worker)
+	if err != nil {
+		log.Printf("failed to save details: %s", err)
+		return fmt.Errorf("failed to save details: %s", err)
+	}
+
+	err = gocron.Every(GoFlowRegisterInterval).Second().Do(func() {
+		err := fRuntime.saveDetails(worker)
+		if err != nil {
+			log.Printf("failed to save details: %s", err)
+		}
+	})
+	if err != nil {
+		return fmt.Errorf("failed to start runtime, %v", err)
+	}
+
+	<-gocron.Start()
+
+	return fmt.Errorf("[goflow] runtime stopped")
+}
+
+func (fRuntime *FlowRuntime) saveDetails(worker *Worker) error {
 	// Get the flow details for each flow
 	flowDetails := make(map[string]string)
+	// clear flows
+	worker.Flows = worker.Flows[:0]
 	for flowID, defHandler := range fRuntime.Flows {
 		worker.Flows = append(worker.Flows, flowID)
 		dag, err := getFlowDefinition(defHandler)
@@ -344,24 +404,8 @@ func (fRuntime *FlowRuntime) StartRuntime() error {
 	if err != nil {
 		return fmt.Errorf("failed to register worker details, %v", err)
 	}
-	err = gocron.Every(GoFlowRegisterInterval).Second().Do(func() {
-		var err error
-		err = fRuntime.saveWorkerDetails(worker)
-		if err != nil {
-			log.Printf("failed to register worker details, %v", err)
-		}
-		err = fRuntime.saveFlowDetails(flowDetails)
-		if err != nil {
-			log.Printf("failed to register worker details, %v", err)
-		}
-	})
-	if err != nil {
-		return fmt.Errorf("failed to start runtime, %v", err)
-	}
 
-	<-gocron.Start()
-
-	return fmt.Errorf("[goflow] runtime stopped")
+	return nil
 }
 
 func (fRuntime *FlowRuntime) EnqueuePartialRequest(pr *runtime.Request) error {
