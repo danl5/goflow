@@ -4,8 +4,7 @@ import (
 	"fmt"
 
 	"github.com/go-redis/redis"
-
-	faasflow "github.com/s8sg/goflow/core/sdk"
+	"github.com/s8sg/goflow/core/sdk"
 )
 
 type RedisStateStore struct {
@@ -19,7 +18,7 @@ type Incrementer interface {
 	Incr(key string, value int64) (int64, error)
 }
 
-func GetRedisStateStore(redisUri string) (faasflow.StateStore, error) {
+func GetRedisStateStore(redisUri string) (sdk.StateStore, error) {
 	stateStore := &RedisStateStore{}
 
 	client := redis.NewClient(&redis.Options{
@@ -124,10 +123,6 @@ func (this *RedisStateStore) Cleanup() error {
 	return rerr
 }
 
-func (this *RedisStateStore) Clone() faasflow.StateStore {
-	return &RedisStateStore{
-		KeyPath:    this.KeyPath,
-		rds:        this.rds,
-		RetryCount: this.RetryCount,
-	}
+func (this *RedisStateStore) CopyStore() (sdk.StateStore, error) {
+	return &RedisStateStore{KeyPath: this.KeyPath, RetryCount: this.RetryCount, rds: this.rds}, nil
 }
