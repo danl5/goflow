@@ -62,8 +62,11 @@ func (rstore *requestEmbedDataStore) Cleanup() error {
 	return nil
 }
 
-func (rstore *requestEmbedDataStore) Clone() sdk.DataStore {
-	return &requestEmbedDataStore{
-		store: rstore.store,
+func (rstore *requestEmbedDataStore) CopyStore() (sdk.DataStore, error) {
+
+	newStore := make(map[string][]byte)
+	for k, v := range rstore.store {
+		newStore[k] = v
 	}
+	return &requestEmbedDataStore{newStore}, nil
 }

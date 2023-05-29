@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/go-redis/redis"
-	faasflow "github.com/s8sg/goflow/core/sdk"
+	"github.com/s8sg/goflow/core/sdk"
 )
 
 type RedisDataStore struct {
@@ -12,7 +12,7 @@ type RedisDataStore struct {
 	redisClient redis.UniversalClient
 }
 
-func GetRedisDataStore(redisUri string) (faasflow.DataStore, error) {
+func GetRedisDataStore(redisUri string) (sdk.DataStore, error) {
 	ds := &RedisDataStore{}
 	client := redis.NewClient(&redis.Options{
 		Addr: redisUri,
@@ -99,15 +99,12 @@ func (this *RedisDataStore) Cleanup() error {
 	return rerr
 }
 
-func (this *RedisDataStore) Clone() faasflow.DataStore {
-	return &RedisDataStore{
-		bucketName:  this.bucketName,
-		redisClient: this.redisClient,
-	}
-}
-
 // getPath produces a string as bucketname.value
 func getPath(bucket, key string) string {
 	fileName := fmt.Sprintf("%s.value", key)
 	return fmt.Sprintf("%s.%s", bucket, fileName)
+}
+
+func (this *RedisDataStore) CopyStore() (sdk.DataStore, error) {
+	return &RedisDataStore{bucketName: this.bucketName, redisClient: this.redisClient}, nil
 }

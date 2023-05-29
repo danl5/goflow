@@ -6,9 +6,9 @@ require (
 	github.com/adjust/rmq/v4 v4.0.0
 	github.com/alexellis/hmac v0.0.0-20180624211220-5c52ab81c0de
 	github.com/codahale/hdrhistogram v0.0.0-20161010025455-3a0bb77429bd // indirect
+	github.com/gin-gonic/gin v1.9.0
 	github.com/go-redis/redis v6.15.5+incompatible
 	github.com/jasonlvhit/gocron v0.0.1
-	github.com/julienschmidt/httprouter v1.3.0
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rs/xid v1.2.1

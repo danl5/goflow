@@ -427,10 +427,9 @@ func (fexec *FlowExecutor) forwardState(currentNodeId string, nextNodeId string,
 	if fexec.isPaused() {
 		// if request is paused, store the partial state in the StateStore
 		fexec.log("[request `%s`] Request is paused, storing partial state for node: %s\n", fexec.id, nextNodeId)
-		err = fexec.storePartialState(partialState)
-		if err != nil {
-			return err
-		}
+		//fix issue#24
+		//when fexecn isPaused it show return it,without HandleNextNode method
+		return fexec.storePartialState(partialState)
 	}
 	err = fexec.executor.HandleNextNode(partialState)
 	if err != nil {
@@ -945,7 +944,8 @@ func (fexec *FlowExecutor) initializeStore() (stateSDefined bool, dataSOverride 
 	}
 
 	if stateS != nil {
-		fexec.stateStore = stateS.Clone()
+		stateStore, _ := stateS.CopyStore()
+		fexec.stateStore = stateStore
 		stateSDefined = true
 		fexec.stateStore.Configure(fexec.flowName, fexec.id)
 		// If request is not partial initialize the stateStore
@@ -963,15 +963,15 @@ func (fexec *FlowExecutor) initializeStore() (stateSDefined bool, dataSOverride 
 		return
 	}
 	if dataS != nil {
-		fexec.dataStore = dataS.Clone()
+		dataSotore, _ := dataS.CopyStore()
+		fexec.dataStore = dataSotore
 		dataSOverride = true
+		fexec.dataStore.Configure(fexec.flowName, fexec.id)
+		// If request is not partial initialize the dataStore
+		if !fexec.partial {
+			_ = fexec.dataStore.Init()
+		}
 	}
-	fexec.dataStore.Configure(fexec.flowName, fexec.id)
-	// If request is not partial initialize the dataStore
-	if !fexec.partial {
-		err = fexec.dataStore.Init()
-	}
-
 	return
 }
 
